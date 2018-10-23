@@ -3,10 +3,6 @@
 
 #include <SDL.h>
 
-const int bpp=12;
-
-int screen_w=500,screen_h=500;
-
 #define BLOCK_SIZE 4096000
 
 //event message
@@ -52,18 +48,18 @@ int main(int argc, char* argv[])
 
     SDL_Thread *timer_thread = NULL;
 
-    int w_width = 640; w_height = 480;
-    const int video_width = 320, video_height = 180;
+    int w_width = 640, w_height = 480;
+    const int video_width = 608, video_height = 368;
 
     Uint8 *video_pos = NULL;
     Uint8 *video_end = NULL;
 
     unsigned int remain_len = 0;
     unsigned int video_buff_len = 0;
-    unsigned int blank space_len = 0;
-    Uint8 *video_buf[BLOCK_SIZE];
+    unsigned int blank_space_len = 0;
+    Uint8 video_buf[BLOCK_SIZE];
 
-    const char *path = "test_yuv420p_320x180.yuv";
+    const char *path = "/Users/lichao/Documents/out.yuv";
 
     const unsigned int yuv_frame_len = video_width * video_height * 12 / 8;
 
@@ -84,7 +80,7 @@ int main(int argc, char* argv[])
         goto __FAIL;
     }
 
-    renderer = SDL_CreateRenderer(screen, -1, 0);
+    renderer = SDL_CreateRenderer(win, -1, 0);
 
     //IYUV: Y + U + V  (3 planes)
     //YV12: Y + V + U  (3 planes)
@@ -105,7 +101,7 @@ int main(int argc, char* argv[])
     }
 
     //read block data
-    if(video_buff_len = fread(video_buf, 1, BLOCK_SIZE, video_fd) <= 0){
+    if((video_buff_len = fread(video_buf, 1, BLOCK_SIZE, video_fd)) <= 0){
         fprintf(stderr, "Failed to read data from yuv file!\n");
         goto __FAIL;
     }
@@ -128,7 +124,7 @@ int main(int argc, char* argv[])
 
                 //have remain data, but there isn't space
                 remain_len = video_end - video_pos;
-                if(remain_len && !black_space_len) {
+                if(remain_len && !blank_space_len) {
                     //copy data to header of buffer
                     memcpy(video_buf, video_pos, remain_len);
 
@@ -145,7 +141,7 @@ int main(int argc, char* argv[])
                 }
 
                 //read data from yuv file to buffer
-                if(video_buff_len = fread(video_end, 1, blank_space_len, video_fd) <= 0){
+                if((video_buff_len = fread(video_end, 1, blank_space_len, video_fd)) <= 0){
                     fprintf(stderr, "eof, exit thread!");
                     thread_exit = 1;
                     continue;// to wait event for exiting
@@ -153,6 +149,8 @@ int main(int argc, char* argv[])
 
                 //reset video_end
                 video_end += video_buff_len;
+                blank_space_len -= video_buff_len;
+                printf("not enought data: pos:%p, video_end:%p, blank_space_len:%d\n", video_pos, video_end, blank_space_len);
             }
 
             SDL_UpdateTexture( texture, NULL, video_pos, video_width);
@@ -166,6 +164,9 @@ int main(int argc, char* argv[])
             SDL_RenderClear( renderer );
             SDL_RenderCopy( renderer, texture, NULL, &rect);
             SDL_RenderPresent( renderer );
+
+            printf("not enought data: pos:%p, video_end:%p, blank_space_len:%d\n", video_pos, video_end, blank_space_len);
+            video_pos += yuv_frame_len;
 
         }else if(event.type==SDL_WINDOWEVENT){
             //If Resize
