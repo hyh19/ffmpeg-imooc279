@@ -1,25 +1,3 @@
-// tutorial04.c
-// A pedagogical video player that will stream through every video frame as fast as it can,
-// and play audio (out of sync).
-//
-// Code based on FFplay, Copyright (c) 2003 Fabrice Bellard, 
-// and a tutorial by Martin Bohme (boehme@inb.uni-luebeckREMOVETHIS.de)
-// Tested on Gentoo, CVS version 5/01/07 compiled with GCC 4.1.1
-// With updates from https://github.com/chelyaev/ffmpeg-tutorial
-// Updates tested on:
-// LAVC 54.59.100, LAVF 54.29.104, LSWS 2.1.101, SDL 1.2.15
-// on GCC 4.7.2 in Debian February 2015
-// Use
-//
-// gcc -o tutorial04 tutorial04.c -lavformat -lavcodec -lswscale -lz -lm `sdl-config --cflags --libs`
-// to build (assuming libavformat and libavcodec are correctly installed, 
-// and assuming you have sdl-config. Please refer to SDL docs for your installation.)
-//
-// Run using
-// tutorial04 myvideofile.mpg
-//
-// to play the video stream on your screen.
-
 #include <stdio.h>
 #include <assert.h>
 #include <math.h>
@@ -207,12 +185,15 @@ int audio_decode_frame(VideoState *is, uint8_t *audio_buf, int buf_size) {
 
       data_size = 0;
       if(got_frame) {
-	/*
-	fprintf(stderr, "auido: channels:%d, nb_samples:%d, sample_fmt:%d\n",
+	
+        /*
+	fprintf(stderr, "=====>auido: channels:%d, nb_samples:%d, sample_fmt:%d\n",
 			is->audio_ctx->channels,
 			is->audio_frame.nb_samples,
 			is->audio_ctx->sample_fmt);
+                        */
 
+        /*
 	data_size = av_samples_get_buffer_size(NULL, 
 					       is->audio_ctx->channels,
 					       is->audio_frame.nb_samples,
@@ -283,17 +264,19 @@ void audio_callback(void *userdata, Uint8 *stream, int len) {
       is->audio_buf_index = 0;
     }
     len1 = is->audio_buf_size - is->audio_buf_index;
-    fprintf(stderr, "stream addr:%p, audio_buf_index:%d, len1:%d, len:%d\n",
+    fprintf(stderr, "stream addr:%p, audio_buf_index:%d, audio_buf_size:%d, len1:%d, len:%d\n",
 		    stream,
 	  	    is->audio_buf_index, 
+                    is->audio_buf_size, 
 		    len1, 
 		    len);
+                    
     if(len1 > len)
       len1 = len;
     //memcpy(stream, (uint8_t *)is->audio_buf + is->audio_buf_index, len1);
-    fwrite(is->audio_buf, 1, len1, audiofd1);
-    fflush(audiofd1);
-    SDL_MixAudio(stream,(uint8_t *)is->audio_buf, len1, SDL_MIX_MAXVOLUME);
+    //fwrite(is->audio_buf, 1, len1, audiofd1);
+    //fflush(audiofd1);
+    SDL_MixAudio(stream,(uint8_t *)is->audio_buf + is->audio_buf_index, len1, SDL_MIX_MAXVOLUME);
     len -= len1;
     stream += len1;
     is->audio_buf_index += len1;
@@ -537,23 +520,22 @@ int stream_component_open(VideoState *is, int stream_index) {
   }
 
   codec = avcodec_find_decoder(pFormatCtx->streams[stream_index]->codec->codec_id);
-  if(!codec) {
-    fprintf(stderr, "Unsupported codec!\n");
-    return -1;
-  }
 
   codecCtx = avcodec_alloc_context3(codec);
   if(avcodec_copy_context(codecCtx, pFormatCtx->streams[stream_index]->codec) != 0) {
     fprintf(stderr, "Couldn't copy codec context");
     return -1; // Error copying codec context
   }
-
+  if(!codec) {
+    fprintf(stderr, "Unsupported codec!\n");
+    return -1;
+  }
 
   if(codecCtx->codec_type == AVMEDIA_TYPE_AUDIO) {
     // Set audio settings from codec info
     wanted_spec.freq = codecCtx->sample_rate;
     wanted_spec.format = AUDIO_S16SYS;
-    wanted_spec.channels = codecCtx->channels;
+    wanted_spec.channels = 2;
     wanted_spec.silence = 0;
     wanted_spec.samples = SDL_AUDIO_BUFFER_SIZE;
     wanted_spec.callback = audio_callback;
@@ -581,29 +563,53 @@ int stream_component_open(VideoState *is, int stream_index) {
     packet_queue_init(&is->audioq);
     SDL_PauseAudio(0);
 
-    in_channel_layout=av_get_default_channel_layout(is->audio_ctx->channels);
-    out_channel_layout = in_channel_layout;
+    //Out Audio Param
+    uint64_t out_channel_layout=AV_CH_LAYOUT_STEREO;
 
-    is->audio_swr_ctx = swr_alloc();
-    swr_alloc_set_opts(is->audio_swr_ctx,
+    //AAC:1024  MP3:1152
+    int out_nb_samples= is->audio_ctx->frame_size;
+    //AVSampleFormat out_sample_fmt = AV_SAMPLE_FMT_S16;
+
+    int out_sample_rate=is->audio_ctx->sample_rate;
+    int out_channels=av_get_channel_layout_nb_channels(out_channel_layout);
+    //Out Buffer Size
+    /*
+    int out_buffer_size=av_samples_get_buffer_size(NULL,
+                                                   out_channels,
+                                                   out_nb_samples,
+                                                   AV_SAMPLE_FMT_S16,
+                                                   1);
+                                                   */
+
+    //uint8_t *out_buffer=(uint8_t *)av_malloc(MAX_AUDIO_FRAME_SIZE*2);
+    int64_t in_channel_layout=av_get_default_channel_layout(is->audio_ctx->channels);
+
+    struct SwrContext *audio_convert_ctx = NULL;
+    audio_convert_ctx = swr_alloc();
+    if(!audio_convert_ctx){
+        printf("Failed to swr_alloc\n"); 
+        return -1;
+    }
+    swr_alloc_set_opts(audio_convert_ctx,
                        out_channel_layout,
                        AV_SAMPLE_FMT_S16,
-                       is->audio_ctx->sample_rate,
+                       out_sample_rate,
                        in_channel_layout,
                        is->audio_ctx->sample_fmt,
                        is->audio_ctx->sample_rate,
                        0,
                        NULL);
 
-    fprintf(stderr, "swr opts: out_channel_layout:%lld, out_sample_fmt:%d, out_sample_rate:%d, in_channel_layout:%lld, in_sample_fmt:%d, in_sample_rate:%d",
+    fprintf(stderr, "swr opts: out_channel_layout:%lld, out_sample_fmt:%d, out_sample_rate:%d, in_channel_layout:%lld, in_sample_fmt:%d, in_sample_rate:%d\n",
                     out_channel_layout, 
 		    AV_SAMPLE_FMT_S16, 
-		    is->audio_ctx->sample_rate, 
+		    out_sample_rate, 
 		    in_channel_layout, 
-		    is->audio_ctx->sample_fmt, 
-		    is->audio_ctx->sample_rate);
+                    is->audio_ctx->sample_fmt,
+                    is->audio_ctx->sample_rate);
 
-    swr_init(is->audio_swr_ctx);
+    swr_init(audio_convert_ctx);
+    is->audio_swr_ctx = audio_convert_ctx; 
 
     break;
 
@@ -634,7 +640,7 @@ int decode_thread(void *arg) {
   Uint32 pixformat;
 
   VideoState *is = (VideoState *)arg;
-  AVFormatContext *pFormatCtx;
+  AVFormatContext *pFormatCtx = NULL;
   AVPacket pkt1, *packet = &pkt1;
 
   int i;
@@ -727,10 +733,10 @@ int decode_thread(void *arg) {
     // Is this a packet from the video stream?
     if(packet->stream_index == is->videoStream) {
       packet_queue_put(&is->videoq, packet);
-      fprintf(stderr, "put video queue, size :%d\n", is->videoq.nb_packets);
+      //fprintf(stderr, "put video queue, size :%d\n", is->videoq.nb_packets);
     } else if(packet->stream_index == is->audioStream) {
       packet_queue_put(&is->audioq, packet);
-      fprintf(stderr, "put audio queue, size :%d\n", is->audioq.nb_packets);
+      //fprintf(stderr, "put audio queue, size :%d\n", is->audioq.nb_packets);
     } else {
       av_free_packet(packet);
     }

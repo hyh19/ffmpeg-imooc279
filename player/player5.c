@@ -272,6 +272,12 @@ void audio_callback(void *userdata, Uint8 *stream, int len) {
       is->audio_buf_index = 0;
     }
     len1 = is->audio_buf_size - is->audio_buf_index;
+    fprintf(stderr, "stream addr:%p, audio_buf_index:%d, audio_buf_size:%d, len1:%d, len:%d\n",
+            stream,
+            is->audio_buf_index,
+            is->audio_buf_size,
+            len1,
+            len);
     if(len1 > len)
       len1 = len;
     SDL_MixAudio(stream,(uint8_t *)is->audio_buf + is->audio_buf_index, len1, SDL_MIX_MAXVOLUME);
@@ -613,7 +619,7 @@ int stream_component_open(VideoState *is, int stream_index) {
                        is->audio_ctx->sample_rate,
                        0,
                        NULL);
-    fprintf(stderr, "swr opts: out_channel_layout:%lld, out_sample_fmt:%d, out_sample_rate:%d, in_channel_layout:%lld, in_sample_fmt:%d, in_sample_rate:%d",
+    fprintf(stderr, "swr opts: out_channel_layout:%lld, out_sample_fmt:%d, out_sample_rate:%d, in_channel_layout:%lld, in_sample_fmt:%d, in_sample_rate:%d\n",
             out_channel_layout, AV_SAMPLE_FMT_S16, out_sample_rate, in_channel_layout, is->audio_ctx->sample_fmt, is->audio_ctx->sample_rate);
     swr_init(audio_convert_ctx);
 
