@@ -140,10 +140,6 @@ static int decode_write_frame(const char *outfilename, AVCodecContext *avctx,
         
         (*frame_count)++;
     }
-    if (pkt->data) {
-        pkt->size -= len;
-        pkt->data += len;
-    }
     return 0;
 }
 
