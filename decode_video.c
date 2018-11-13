@@ -266,7 +266,7 @@ int main(int argc, char **argv)
     img_convert_ctx = sws_getContext(c->width, c->height,
                                      c->pix_fmt,
                                      c->width, c->height,
-                                     AV_PIX_FMT_RGB24,
+                                     AV_PIX_FMT_BGR24,
                                      SWS_BICUBIC, NULL, NULL, NULL);
 
     if (img_convert_ctx == NULL)
