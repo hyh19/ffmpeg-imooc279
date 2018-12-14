@@ -182,6 +182,7 @@ int main(int argc, char *argv[])
                        pkt.size);
             }
         }
+		av_packet_unref(&pkt);
     }
 
     //av_write_trailer(ofmt_ctx);
