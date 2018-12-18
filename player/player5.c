@@ -653,7 +653,7 @@ int demux_thread(void *arg) {
   Uint32 pixformat;
 
   VideoState *is = (VideoState *)arg;
-  AVFormatContext *pFormatCtx;
+  AVFormatContext *pFormatCtx = NULL;
   AVPacket pkt1, *packet = &pkt1;
 
   int video_index = -1;
