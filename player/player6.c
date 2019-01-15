@@ -118,6 +118,12 @@ enum {
   AV_SYNC_EXTERNAL_MASTER,
 };
 
+static int screen_left = SDL_WINDOWPOS_CENTERED;
+static int screen_top = SDL_WINDOWPOS_CENTERED;
+static int screen_width = 0;
+static int screen_height = 0;
+static int resize = 1;
+
 FILE *yuvfd = NULL;
 FILE *audiofd = NULL;
 
@@ -417,6 +423,24 @@ void video_display(VideoState *is) {
   float aspect_ratio;
   int w, h, x, y;
   int i;
+
+  if(screen_width && resize){
+	  SDL_SetWindowSize(win, screen_width, screen_height);
+	  SDL_SetWindowPosition(win, screen_left, screen_top); 
+	  SDL_ShowWindow(win);
+
+	  //IYUV: Y + U + V  (3 planes)
+	  //YV12: Y + V + U  (3 planes)
+	  Uint32 pixformat= SDL_PIXELFORMAT_IYUV;
+
+	  //create texture for render
+	  texture = SDL_CreateTexture(renderer,
+			  pixformat,
+			  SDL_TEXTUREACCESS_STREAMING,
+			  screen_width,
+			  screen_height);
+	  resize = 0;
+  }
 
   vp = &is->pictq[is->pictq_rindex];
   if(vp->bmp) {
@@ -777,6 +801,8 @@ int demux_thread(void *arg) {
   int err_code;
   char errors[1024] = {0,};
 
+  int w, h;
+
   VideoState *is = (VideoState *)arg;
   AVFormatContext *pFormatCtx = NULL;
   AVPacket pkt1, *packet = &pkt1;
@@ -830,30 +856,8 @@ int demux_thread(void *arg) {
     goto fail;
   }
 
-  //creat window from SDL
-  win = SDL_CreateWindow("Media Player",
-                         SDL_WINDOWPOS_UNDEFINED,
-                         SDL_WINDOWPOS_UNDEFINED,
-                         is->video_ctx->width, is->video_ctx->height,
-                         SDL_WINDOW_OPENGL|SDL_WINDOW_RESIZABLE);
-  if(!win) {
-      fprintf(stderr, "SDL: could not set video mode - exiting\n");
-      exit(1);
-  }
-
-  renderer = SDL_CreateRenderer(win, -1, 0);
-
-  //IYUV: Y + U + V  (3 planes)
-  //YV12: Y + V + U  (3 planes)
-  Uint32 pixformat= SDL_PIXELFORMAT_IYUV;
-
-  //create texture for render
-  texture = SDL_CreateTexture(renderer,
-                              pixformat,
-                              SDL_TEXTUREACCESS_STREAMING,
-                              is->video_ctx->width,
-                              is->video_ctx->height);
-
+  screen_width = is->video_ctx->width;
+  screen_height = is->video_ctx->height;
 
   // main decode loop
 
@@ -923,6 +927,19 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
 
+  //creat window from SDL
+  win = SDL_CreateWindow("Media Player",
+                         100,
+                         100,
+						 640,480,
+                         //is->video_ctx->width, is->video_ctx->height,
+                         SDL_WINDOW_RESIZABLE);
+  if(!win) {
+      fprintf(stderr, "\nSDL: could not set video mode:%s - exiting\n", SDL_GetError());
+      exit(1);
+  }
+
+  renderer = SDL_CreateRenderer(win, -1, 0);
 
   text_mutex = SDL_CreateMutex();
 
