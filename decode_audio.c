@@ -156,6 +156,8 @@ int main(int argc, char **argv)
     */
 
     while (1) {
+
+        int ret;
         int i, ch;
         int got_frame = 0;
 
@@ -166,15 +168,17 @@ int main(int argc, char **argv)
             }
         }
 
-        if(av_read_frame(pFormatCtx, &avpkt) < 0) {
-            if(pFormatCtx->pb->error == 0) {
-                usleep(100); /* no error; wait for user input */
-                continue;
-            } else {
-                break;
-            }
+        ret = av_read_frame(pFormatCtx, &avpkt);
+
+        if (ret == AVERROR(EAGAIN)) {
+            av_usleep(100);
+            continue;
         }
-        
+
+        if (ret < 0) {
+            break;
+        }
+
         if(avpkt.stream_index != audiostream_index){
             av_free_packet(&avpkt);
             continue; 
