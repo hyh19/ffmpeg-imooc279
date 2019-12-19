@@ -24,7 +24,7 @@ static int alloc_and_copy(AVPacket *out,
                           const uint8_t *in, uint32_t in_size)
 {
     uint32_t offset         = out->size;
-    uint8_t nal_header_size = offset ? 3 : 4;
+    uint8_t nal_header_size = 4;
     int err;
 
     err = av_grow_packet(out, sps_pps_size + in_size + nal_header_size);
