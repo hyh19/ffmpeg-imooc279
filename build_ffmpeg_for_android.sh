@@ -1,3 +1,4 @@
+#!/bin/bash
 PREFIX=android-build
 
 #设置你自己的NDK位置
