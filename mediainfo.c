@@ -12,9 +12,9 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    char *src_filename = argv[1];
+    char *src_filename = "/Users/lichao/Documents/killer.mp4";//argv[1];
 
-    av_register_all();
+    //av_register_all();
 
     /* open input file, and allocate format context */
     if ((err_code=avformat_open_input(&fmt_ctx, src_filename, NULL, NULL)) < 0) {

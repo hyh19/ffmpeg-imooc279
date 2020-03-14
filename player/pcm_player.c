@@ -41,7 +41,7 @@ int main(int argc, char *argv[])
     }
 
     //open pcm file
-    audio_fd = fopen(path, "r");
+    audio_fd = fopen(path, "rb");
     if(!audio_fd){
         fprintf(stderr, "Failed to open pcm file!\n");
         goto __FAIL;
@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
     spec.format = AUDIO_S16SYS;
     spec.channels = 2;
     spec.silence = 0;
-    spec.samples = 2048;;
+    spec.samples = 2048;
     spec.callback = read_audio_data;;
     spec.userdata = NULL;
 
