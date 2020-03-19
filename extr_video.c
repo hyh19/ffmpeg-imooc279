@@ -24,7 +24,7 @@ static int alloc_and_copy(AVPacket *out,
                           const uint8_t *in, uint32_t in_size)
 {
     uint32_t offset         = out->size;
-    uint8_t nal_header_size = offset ? 4 : 3;
+    uint8_t nal_header_size = 4;
     int err;
 
     err = av_grow_packet(out, sps_pps_size + in_size + nal_header_size);
@@ -49,8 +49,7 @@ int h264_extradata_to_annexb(const uint8_t *codec_extradata, const int codec_ext
 {
     uint16_t unit_size;
     uint64_t total_size                 = 0;
-    uint8_t *out                        = NULL, unit_nb, sps_done = 0,
-                                        sps_seen = 0, pps_seen = 0, sps_offset = 0, pps_offset = 0;
+    uint8_t *out                        = NULL, unit_nb, sps_done = 0, sps_seen = 0, pps_seen = 0, sps_offset = 0, pps_offset = 0;
     const uint8_t *extradata            = codec_extradata + 4;
     static const uint8_t nalu_header[4] = { 0, 0, 0, 1 };
     int length_size = (*extradata++ & 0x3) + 1; // retrieve length coded size, 用于指示表示NALU数据长度所需占用的字节数
