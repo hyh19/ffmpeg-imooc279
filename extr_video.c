@@ -47,17 +47,47 @@ static int alloc_and_copy(AVPacket *out,
 
 int h264_extradata_to_annexb(const uint8_t *codec_extradata, const int codec_extradata_size, AVPacket *out_extradata, int padding)
 {
-    uint16_t unit_size;
-    uint64_t total_size                 = 0;
-    uint8_t *out                        = NULL, unit_nb, sps_done = 0, sps_seen = 0, pps_seen = 0, sps_offset = 0, pps_offset = 0;
-    const uint8_t *extradata            = codec_extradata + 4;
-    static const uint8_t nalu_header[4] = { 0, 0, 0, 1 };
-    int length_size = (*extradata++ & 0x3) + 1; // retrieve length coded size, 用于指示表示NALU数据长度所需占用的字节数
+    uint16_t unit_size  = 0;
+    uint64_t total_size = 0;
+    uint8_t *out        = NULL;
+    uint8_t unit_nb     = 0;
+    uint8_t sps_done    = 0;
+    uint8_t sps_seen    = 0;
+    uint8_t pps_seen    = 0;
+    uint8_t sps_offset  = 0;
+    uint8_t pps_offset  = 0;
+
+    /**
+     * AVCC
+     * bits
+     *  8   version ( always 0x01 )
+     *  8   avc profile ( sps[0][1] )
+     *  8   avc compatibility ( sps[0][2] )
+     *  8   avc level ( sps[0][3] )
+     *  6   reserved ( all bits on )
+     *  2   NALULengthSizeMinusOne    // 这个值是（前缀长度-1），值如果是3，那前缀就是4，因为4-1=3
+     *  3   reserved ( all bits on )
+     *  5   number of SPS NALUs (usually 1)
+     *
+     *  repeated once per SPS:
+     *  16     SPS size
+     *
+     *  variable   SPS NALU data
+     *  8   number of PPS NALUs (usually 1)
+     *  repeated once per PPS
+     *  16    PPS size
+     *  variable PPS NALU data
+     */
+
+    const uint8_t *extradata = codec_extradata + 4; //extradata存放数据的格式如上，前4个字节没用，所以将其舍弃
+    static const uint8_t nalu_header[4] = { 0, 0, 0, 1 }; //每个H264裸数据都是以 0001 4个字节为开头的
+
+    extradata++;//跳过一个字节，这个也没用 
 
     sps_offset = pps_offset = -1;
 
     /* retrieve sps and pps unit(s) */
-    unit_nb = *extradata++ & 0x1f; /* number of sps unit(s) */
+    unit_nb = *extradata++ & 0x1f; /* 取 SPS 个数，理论上可以有多个, 但我没有见到过多 SPS 的情况*/
     if (!unit_nb) {
         goto pps;
     }else {
@@ -65,29 +95,37 @@ int h264_extradata_to_annexb(const uint8_t *codec_extradata, const int codec_ext
         sps_seen = 1;
     }
 
-    while (unit_nb--) {
+    while(unit_nb--) {
         int err;
 
         unit_size   = AV_RB16(extradata);
-        total_size += unit_size + 4;
+        total_size += unit_size + 4; //加上4字节的h264 header, 即 0001
         if (total_size > INT_MAX - padding) {
             av_log(NULL, AV_LOG_ERROR,
                    "Too big extradata size, corrupted stream or invalid MP4/AVCC bitstream\n");
             av_free(out);
             return AVERROR(EINVAL);
         }
+
+        //2:表示上面 unit_size 的所占字结数
+        //这句的意思是 extradata 所指的地址，加两个字节，再加 unit 的大小所指向的地址
+        //是否超过了能访问的有效地址空间
         if (extradata + 2 + unit_size > codec_extradata + codec_extradata_size) {
             av_log(NULL, AV_LOG_ERROR, "Packet header is not contained in global extradata, "
                    "corrupted stream or invalid MP4/AVCC bitstream\n");
             av_free(out);
             return AVERROR(EINVAL);
         }
+
+        //分配存放 SPS 的空间
         if ((err = av_reallocp(&out, total_size + padding)) < 0)
             return err;
+
         memcpy(out + total_size - unit_size - 4, nalu_header, 4);
         memcpy(out + total_size - unit_size, extradata + 2, unit_size);
         extradata += 2 + unit_size;
 pps:
+        //当 SPS 处理完后，开始处理 PPS
         if (!unit_nb && !sps_done++) {
             unit_nb = *extradata++; /* number of pps unit(s) */
             if (unit_nb) {
@@ -97,8 +135,10 @@ pps:
         }
     }
 
-    if (out)
+    //余下的空间清0
+    if (out){
         memset(out + total_size, 0, padding);
+    }
 
     if (!sps_seen)
         av_log(NULL, AV_LOG_WARNING,
@@ -113,7 +153,7 @@ pps:
     out_extradata->data      = out;
     out_extradata->size      = total_size;
 
-    return length_size;
+    return 0;
 }
 
 int h264_mp4toannexb(AVFormatContext *fmt_ctx, AVPacket *in, FILE *dst_fd)
@@ -139,55 +179,28 @@ int h264_mp4toannexb(AVFormatContext *fmt_ctx, AVPacket *in, FILE *dst_fd)
 
     do {
         ret= AVERROR(EINVAL);
-        if (buf + 4 /*s->length_size*/ > buf_end)
+        //因为每个视频帧的前 4 个字节是视频帧的长度
+        //如果buf中的数据都不能满足4字节，所以后面就没有必要再进行处理了
+        if (buf + 4 > buf_end)
             goto fail;
 
-        for (nal_size = 0, i = 0; i<4/*s->length_size*/; i++)
+        //将前四字节转换成整型,也就是取出视频帧长度
+        for (nal_size = 0, i = 0; i<4; i++)
             nal_size = (nal_size << 8) | buf[i];
 
-        buf += 4; /*s->length_size;*/
-        unit_type = *buf & 0x1f;
+        buf += 4; //跳过4字节（也就是视频帧长度），从而指向真正的视频帧数据 
+        unit_type = *buf & 0x1f; //视频帧的第一个字节里有NAL TYPE
 
+        //如果视频帧长度大于从 AVPacket 中读到的数据大小，说明这个数据包肯定是出错了
         if (nal_size > buf_end - buf || nal_size < 0)
             goto fail;
 
-        /*
-        if (unit_type == 7)
-            s->idr_sps_seen = s->new_idr = 1;
-        else if (unit_type == 8) {
-            s->idr_pps_seen = s->new_idr = 1;
-            */
-            /* if SPS has not been seen yet, prepend the AVCC one to PPS */
-            /*
-            if (!s->idr_sps_seen) {
-                if (s->sps_offset == -1)
-                    av_log(ctx, AV_LOG_WARNING, "SPS not present in the stream, nor in AVCC, stream may be unreadable\n");
-                else {
-                    if ((ret = alloc_and_copy(out,
-                                         ctx->par_out->extradata + s->sps_offset,
-                                         s->pps_offset != -1 ? s->pps_offset : ctx->par_out->extradata_size - s->sps_offset,
-                                         buf, nal_size)) < 0)
-                        goto fail;
-                    s->idr_sps_seen = 1;
-                    goto next_nal;
-                }
-            }
-        }
-        */
-
-        /* if this is a new IDR picture following an IDR picture, reset the idr flag.
-         * Just check first_mb_in_slice to be 0 as this is the simplest solution.
-         * This could be checking idr_pic_id instead, but would complexify the parsing. */
-        /*
-        if (!s->new_idr && unit_type == 5 && (buf[1] & 0x80))
-            s->new_idr = 1;
-
-        */
         /* prepend only to the first type 5 NAL unit of an IDR picture, if no sps/pps are already present */
-        if (/*s->new_idr && */unit_type == 5 /*&& !s->idr_sps_seen && !s->idr_pps_seen*/) {
+        if (unit_type == 5) {
 
-            h264_extradata_to_annexb( fmt_ctx->streams[in->stream_index]->codec->extradata,
-                                      fmt_ctx->streams[in->stream_index]->codec->extradata_size,
+            //在每个I帧之前都加 SPS/PPS
+            h264_extradata_to_annexb( fmt_ctx->streams[in->stream_index]->codecpar->extradata,
+                                      fmt_ctx->streams[in->stream_index]->codecpar->extradata_size,
                                       &spspps_pkt,
                                       AV_INPUT_BUFFER_PADDING_SIZE);
 
@@ -195,28 +208,9 @@ int h264_mp4toannexb(AVFormatContext *fmt_ctx, AVPacket *in, FILE *dst_fd)
                                spspps_pkt.data, spspps_pkt.size,
                                buf, nal_size)) < 0)
                 goto fail;
-            /*s->new_idr = 0;*/
-        /* if only SPS has been seen, also insert PPS */
-        }
-        /*else if (s->new_idr && unit_type == 5 && s->idr_sps_seen && !s->idr_pps_seen) {
-            if (s->pps_offset == -1) {
-                av_log(ctx, AV_LOG_WARNING, "PPS not present in the stream, nor in AVCC, stream may be unreadable\n");
-                if ((ret = alloc_and_copy(out, NULL, 0, buf, nal_size)) < 0)
-                    goto fail;
-            } else if ((ret = alloc_and_copy(out,
-                                        ctx->par_out->extradata + s->pps_offset, ctx->par_out->extradata_size - s->pps_offset,
-                                        buf, nal_size)) < 0)
-                goto fail;
-        }*/ else {
+        } else {
             if ((ret=alloc_and_copy(out, NULL, 0, buf, nal_size)) < 0)
                 goto fail;
-            /*
-            if (!s->new_idr && unit_type == 1) {
-                s->new_idr = 1;
-                s->idr_sps_seen = 0;
-                s->idr_pps_seen = 0;
-            }
-            */
         }
 
 
@@ -233,12 +227,6 @@ next_nal:
         cumul_size += nal_size + 4;//s->length_size;
     } while (cumul_size < buf_size);
 
-    /*
-    ret = av_packet_copy_props(out, in);
-    if (ret < 0)
-        goto fail;
-
-    */
 fail:
     av_packet_free(&out);
 
@@ -257,14 +245,8 @@ int main(int argc, char *argv[])
 
     int video_stream_index = -1;
 
-    //AVFormatContext *ofmt_ctx = NULL;
-    //AVOutputFormat *output_fmt = NULL;
-    //AVStream *out_stream = NULL;
-
     AVFormatContext *fmt_ctx = NULL;
     AVPacket pkt;
-
-    //AVFrame *frame = NULL;
 
     av_log_set_level(AV_LOG_DEBUG);
 
@@ -280,9 +262,6 @@ int main(int argc, char *argv[])
         av_log(NULL, AV_LOG_ERROR, "src or dts file is null, plz check them!\n");
         return -1;
     }
-
-    /*register all formats and codec*/
-    av_register_all();
 
     dst_fd = fopen(dst_filename, "wb");
     if (!dst_fd) {
@@ -317,21 +296,9 @@ int main(int argc, char *argv[])
         return AVERROR(EINVAL);
     }
 
-    /*
-    if (avformat_write_header(ofmt_ctx, NULL) < 0) {
-        av_log(NULL, AV_LOG_DEBUG, "Error occurred when opening output file");
-        exit(1);
-    }
-    */
-
     /*read frames from media file*/
     while(av_read_frame(fmt_ctx, &pkt) >=0 ){
         if(pkt.stream_index == video_stream_index){
-            /*
-            pkt.stream_index = 0;
-            av_write_frame(ofmt_ctx, &pkt);
-            av_free_packet(&pkt);
-            */
 
             h264_mp4toannexb(fmt_ctx, &pkt, dst_fd);
 
@@ -341,15 +308,11 @@ int main(int argc, char *argv[])
         av_packet_unref(&pkt);
     }
 
-    //av_write_trailer(ofmt_ctx);
-
     /*close input media file*/
     avformat_close_input(&fmt_ctx);
     if(dst_fd) {
         fclose(dst_fd);
     }
-
-    //avio_close(ofmt_ctx->pb);
 
     return 0;
 }

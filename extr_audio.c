@@ -1,3 +1,9 @@
+/**
+ * extract audio from media file
+ *
+ * copyright lichao 2020.4.10
+ */
+
 #include <stdio.h>
 #include <libavutil/log.h>
 #include <libavformat/avio.h>
@@ -5,11 +11,61 @@
 
 #define ADTS_HEADER_LEN  7;
 
-void adts_header(char *szAdtsHeader, int dataLen){
+static int get_audio_obj_type(int aactype){
+    //AAC HE V2 = AAC LC + SBR + PS
+    //AAV HE = AAC LC + SBR
+    //所以无论是 AAC_HEv2 还是 AAC_HE 都是 AAC_LC
+    switch(aactype){
+        case 0:
+        case 2:
+        case 3:
+            return aactype+1;
+        case 1:
+        case 4:
+        case 28:
+            return 2;
+        default:
+            return 2;
 
-    int audio_object_type = 2;
-    int sampling_frequency_index = 7;
-    int channel_config = 2;
+    }
+}
+
+static int get_sample_rate_index(int freq, int aactype){
+
+    int i = 0;
+    int freq_arr[13] = {
+        96000, 88200, 64000, 48000, 44100, 32000,
+        24000, 22050, 16000, 12000, 11025, 8000, 7350
+    };
+
+    //如果是 AAC HEv2 或 AAC HE, 则频率减半
+    if(aactype == 28 || aactype == 4){
+        freq /= 2; 
+    }
+
+    for(i=0; i< 13; i++){
+        if(freq == freq_arr[i]){
+            return i;
+        }
+    }
+    return 4;//默认是44100
+}
+
+static int get_channel_config(int channels, int aactype){
+    //如果是 AAC HEv2 通道数减半
+    if(aactype == 28){
+        return (channels / 2); 
+    }
+    return channels;
+}
+
+static void adts_header(char *szAdtsHeader, int dataLen, int aactype, int frequency, int channels){
+
+    int audio_object_type = get_audio_obj_type(aactype);
+    int sampling_frequency_index = get_sample_rate_index(frequency, aactype);
+    int channel_config = get_channel_config(channels, aactype);
+
+    printf("aot=%d, freq_index=%d, channel=%d\n", audio_object_type, sampling_frequency_index, channel_config);
 
     int adtsLen = dataLen + 7;
 
@@ -74,35 +130,6 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    /*register all formats and codec*/
-    av_register_all();
-
-    /*
-    ofmt_ctx = avformat_alloc_context();
-    output_fmt = av_guess_format(NULL, dst_filename, NULL);
-    if(!output_fmt){
-        av_log(NULL, AV_LOG_DEBUG, "Cloud not guess file format \n");
-        exit(1);
-    }
-
-    ofmt_ctx->oformat = output_fmt;
-
-    out_stream = avformat_new_stream(ofmt_ctx, NULL);
-    if(!out_stream){
-        av_log(NULL, AV_LOG_DEBUG, "Failed to create out stream!\n");
-        exit(1);
-    }
-
-    if((err_code = avio_open(&ofmt_ctx->pb, dst_filename, AVIO_FLAG_WRITE)) < 0) {
-        av_strerror(err_code, errors, 1024);
-        av_log(NULL, AV_LOG_DEBUG, "Could not open file %s, %d(%s)\n",
-               dst_filename,
-               err_code,
-               errors);
-        exit(1);
-    }
-    */
-
     dst_fd = fopen(dst_filename, "wb");
     if (!dst_fd) {
         av_log(NULL, AV_LOG_DEBUG, "Could not open destination file %s\n", dst_filename);
@@ -132,9 +159,6 @@ int main(int argc, char *argv[])
     /*dump input information*/
     av_dump_format(fmt_ctx, 0, src_filename, 0);
 
-    /*dump output information*/
-    //av_dump_format(ofmt_ctx, 0, dst_filename, 1);
-
     frame = av_frame_alloc();
     if(!frame){
         av_log(NULL, AV_LOG_DEBUG, "Could not allocate frame\n");
@@ -156,23 +180,36 @@ int main(int argc, char *argv[])
     }
 
     /*
-    if (avformat_write_header(ofmt_ctx, NULL) < 0) {
-        av_log(NULL, AV_LOG_DEBUG, "Error occurred when opening output file");
-        exit(1);
-    }
+     #define FF_PROFILE_AAC_MAIN 0
+     #define FF_PROFILE_AAC_LOW  1
+     #define FF_PROFILE_AAC_SSR  2
+     #define FF_PROFILE_AAC_LTP  3
+     #define FF_PROFILE_AAC_HE   4
+     #define FF_PROFILE_AAC_HE_V2 28
+     #define FF_PROFILE_AAC_LD   22
+     #define FF_PROFILE_AAC_ELD  38
+     #define FF_PROFILE_MPEG2_AAC_LOW 128
+     #define FF_PROFILE_MPEG2_AAC_HE  131
     */
+
+    int aac_type = fmt_ctx->streams[1]->codecpar->profile;
+    int channels = fmt_ctx->streams[1]->codecpar->channels;
+    int sample_rate= fmt_ctx->streams[1]->codecpar->sample_rate;
+
+    if(fmt_ctx->streams[1]->codecpar->codec_id != AV_CODEC_ID_AAC){
+        av_log(NULL, AV_LOG_ERROR, "the audio type is not AAC!\n");
+        goto __ERROR;
+    }else{
+        av_log(NULL, AV_LOG_INFO, "the audio type is AAC!\n"); 
+    }
 
     /*read frames from media file*/
     while(av_read_frame(fmt_ctx, &pkt) >=0 ){
         if(pkt.stream_index == audio_stream_index){
-            /*
-            pkt.stream_index = 0;
-            av_write_frame(ofmt_ctx, &pkt);
-            av_free_packet(&pkt);
-            */
 
+            
             char adts_header_buf[7];
-            adts_header(adts_header_buf, pkt.size);
+            adts_header(adts_header_buf, pkt.size, aac_type, sample_rate, channels);
             fwrite(adts_header_buf, 1, 7, dst_fd);
 
             len = fwrite( pkt.data, 1, pkt.size, dst_fd);
@@ -182,18 +219,16 @@ int main(int argc, char *argv[])
                        pkt.size);
             }
         }
-		av_packet_unref(&pkt);
+        av_packet_unref(&pkt);
     }
 
-    //av_write_trailer(ofmt_ctx);
+__ERROR:
 
     /*close input media file*/
     avformat_close_input(&fmt_ctx);
     if(dst_fd) {
         fclose(dst_fd);
     }
-
-    //avio_close(ofmt_ctx->pb);
 
     return 0;
 }

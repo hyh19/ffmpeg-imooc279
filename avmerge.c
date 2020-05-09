@@ -48,9 +48,6 @@ int main(int argc, char *argv[])
 
     out_file = argv[3];
 
-    //register avformat, codec
-    av_register_all();
-
     //open first file
     if((err_code = avformat_open_input(&ifmt_ctx1, src_file1, 0, 0)) < 0 ){
         av_strerror(err_code, errors, ERROR_STR_SIZE);

@@ -920,7 +920,7 @@ int main(int argc, char *argv[]) {
   yuvfd = fopen("testout.yuv", "wb+");
   audiofd = fopen("testout.pcm", "wb+");
   // Register all formats and codecs
-  av_register_all();
+  //av_register_all();
 
   if(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER)) {
     fprintf(stderr, "Could not initialize SDL - %s\n", SDL_GetError());

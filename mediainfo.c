@@ -12,7 +12,7 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    char *src_filename = "/Users/lichao/Documents/killer.mp4";//argv[1];
+    char *src_filename = argv[1];
 
     //av_register_all();
 

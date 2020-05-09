@@ -20,7 +20,7 @@ int cut_video(double from_seconds, double end_seconds, const char* in_filename, 
     AVPacket pkt;
     int ret, i;
 
-    av_register_all();
+    //av_register_all();
 
     if ((ret = avformat_open_input(&ifmt_ctx, in_filename, 0, 0)) < 0) {
         fprintf(stderr, "Could not open input file '%s'", in_filename);
@@ -45,21 +45,19 @@ int cut_video(double from_seconds, double end_seconds, const char* in_filename, 
 
     for (i = 0; i < ifmt_ctx->nb_streams; i++) {
         AVStream *in_stream = ifmt_ctx->streams[i];
-        AVStream *out_stream = avformat_new_stream(ofmt_ctx, in_stream->codec->codec);
+        AVStream *out_stream = avformat_new_stream(ofmt_ctx, NULL);
         if (!out_stream) {
             fprintf(stderr, "Failed allocating output stream\n");
             ret = AVERROR_UNKNOWN;
             goto end;
         }
 
-        ret = avcodec_copy_context(out_stream->codec, in_stream->codec);
+        ret = avcodec_parameters_copy(out_stream->codecpar, in_stream->codecpar);
         if (ret < 0) {
             fprintf(stderr, "Failed to copy context from input to output stream codec context\n");
             goto end;
         }
-        out_stream->codec->codec_tag = 0;
-        if (ofmt_ctx->oformat->flags & AVFMT_GLOBALHEADER)
-            out_stream->codec->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
+        out_stream->codecpar->codec_tag = 0;
     }
     av_dump_format(ofmt_ctx, 0, out_filename, 1);
 
@@ -77,10 +75,6 @@ int cut_video(double from_seconds, double end_seconds, const char* in_filename, 
         goto end;
     }
 
-    //    int indexs[8] = {0};
-
-
-    //    int64_t start_from = 8*AV_TIME_BASE;
     ret = av_seek_frame(ifmt_ctx, -1, from_seconds*AV_TIME_BASE, AVSEEK_FLAG_ANY);
     if (ret < 0) {
         fprintf(stderr, "Error seek\n");
@@ -105,7 +99,7 @@ int cut_video(double from_seconds, double end_seconds, const char* in_filename, 
         log_packet(ifmt_ctx, &pkt, "in");
 
         if (av_q2d(in_stream->time_base) * pkt.pts > end_seconds) {
-            av_free_packet(&pkt);
+            av_packet_unref(&pkt);
             break;
         }
 
@@ -137,7 +131,7 @@ int cut_video(double from_seconds, double end_seconds, const char* in_filename, 
             fprintf(stderr, "Error muxing packet\n");
             break;
         }
-        av_free_packet(&pkt);
+        av_packet_unref(&pkt);
     }
     free(dts_start_from);
     free(pts_start_from);

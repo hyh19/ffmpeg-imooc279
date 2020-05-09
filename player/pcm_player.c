@@ -17,6 +17,7 @@ void read_audio_data(void *udata, Uint8 *stream, int len){
     SDL_memset(stream, 0, len);
 
     len = (len < buffer_len) ? len : buffer_len;
+    printf("len=%d\n", len);
     SDL_MixAudio(stream, audio_pos, len, SDL_MIX_MAXVOLUME);
 
     audio_pos += len;
@@ -58,7 +59,7 @@ int main(int argc, char *argv[])
     spec.format = AUDIO_S16SYS;
     spec.channels = 2;
     spec.silence = 0;
-    spec.samples = 2048;
+    spec.samples = 1024;
     spec.callback = read_audio_data;;
     spec.userdata = NULL;
 
