@@ -8,6 +8,10 @@
 
 /* Begin PBXBuildFile section */
 		9D5DE23A245EC4ED002641F4 /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = 9D5DE239245EC4ED002641F4 /* main.c */; };
+		9D5DE245245EC60F002641F4 /* libavutil.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 9D5DE241245EC60F002641F4 /* libavutil.dylib */; };
+		9D5DE246245EC60F002641F4 /* libavformat.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 9D5DE242245EC60F002641F4 /* libavformat.dylib */; };
+		9D5DE247245EC60F002641F4 /* libavfilter.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 9D5DE243245EC60F002641F4 /* libavfilter.dylib */; };
+		9D5DE248245EC60F002641F4 /* libavcodec.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 9D5DE244245EC60F002641F4 /* libavcodec.dylib */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -25,6 +29,10 @@
 /* Begin PBXFileReference section */
 		9D5DE236245EC4ED002641F4 /* ff_filter */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = ff_filter; sourceTree = BUILT_PRODUCTS_DIR; };
 		9D5DE239245EC4ED002641F4 /* main.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
+		9D5DE241245EC60F002641F4 /* libavutil.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libavutil.dylib; path = libs/libavutil.dylib; sourceTree = "<group>"; };
+		9D5DE242245EC60F002641F4 /* libavformat.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libavformat.dylib; path = libs/libavformat.dylib; sourceTree = "<group>"; };
+		9D5DE243245EC60F002641F4 /* libavfilter.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libavfilter.dylib; path = libs/libavfilter.dylib; sourceTree = "<group>"; };
+		9D5DE244245EC60F002641F4 /* libavcodec.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libavcodec.dylib; path = libs/libavcodec.dylib; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -32,6 +40,10 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9D5DE245245EC60F002641F4 /* libavutil.dylib in Frameworks */,
+				9D5DE246245EC60F002641F4 /* libavformat.dylib in Frameworks */,
+				9D5DE247245EC60F002641F4 /* libavfilter.dylib in Frameworks */,
+				9D5DE248245EC60F002641F4 /* libavcodec.dylib in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -43,6 +55,7 @@
 			children = (
 				9D5DE238245EC4ED002641F4 /* ff_filter */,
 				9D5DE237245EC4ED002641F4 /* Products */,
+				9D5DE240245EC60E002641F4 /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -60,6 +73,17 @@
 				9D5DE239245EC4ED002641F4 /* main.c */,
 			);
 			path = ff_filter;
+			sourceTree = "<group>";
+		};
+		9D5DE240245EC60E002641F4 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				9D5DE244245EC60F002641F4 /* libavcodec.dylib */,
+				9D5DE243245EC60F002641F4 /* libavfilter.dylib */,
+				9D5DE242245EC60F002641F4 /* libavformat.dylib */,
+				9D5DE241245EC60F002641F4 /* libavutil.dylib */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -241,7 +265,12 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = DKJK2UTR58;
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/libs",
+				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				"USER_HEADER_SEARCH_PATHS[arch=*]" = "/Users/lichao/Documents/coding-279/ff_filter/include";
 			};
 			name = Debug;
 		};
@@ -250,7 +279,12 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = DKJK2UTR58;
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/libs",
+				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				"USER_HEADER_SEARCH_PATHS[arch=*]" = "/Users/lichao/Documents/coding-279/ff_filter/include";
 			};
 			name = Release;
 		};
