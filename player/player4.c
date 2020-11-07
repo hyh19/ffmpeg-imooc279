@@ -82,7 +82,7 @@ typedef struct VideoState {
 
 } VideoState;
 
-SDL_mutex       *texture_mutex;
+//SDL_mutex       *texture_mutex;
 SDL_Window      *win;
 SDL_Renderer    *renderer;
 SDL_Texture     *texture;
@@ -340,11 +340,11 @@ void video_display(VideoState *is) {
     rect.w = is->video_ctx->width;
     rect.h = is->video_ctx->height;
 
-    SDL_LockMutex(texture_mutex);
+    //SDL_LockMutex(texture_mutex);
     SDL_RenderClear(renderer);
     SDL_RenderCopy(renderer, texture, NULL, &rect);
     SDL_RenderPresent(renderer);
-    SDL_UnlockMutex(texture_mutex);
+    //SDL_UnlockMutex(texture_mutex);
 
   }
 }
@@ -397,7 +397,7 @@ void alloc_picture(void *userdata) {
   }
 
   // Allocate a place to put our YUV image on that screen
-  SDL_LockMutex(texture_mutex);
+  //SDL_LockMutex(texture_mutex);
   vp->pict = (AVPicture*)malloc(sizeof(AVPicture));
   if(vp->pict){
     avpicture_alloc(vp->pict,
@@ -405,7 +405,7 @@ void alloc_picture(void *userdata) {
 		    is->video_ctx->width,
 		    is->video_ctx->height);
   }
-  SDL_UnlockMutex(texture_mutex);
+  //SDL_UnlockMutex(texture_mutex);
 
   vp->width = is->video_ctx->width;
   vp->height = is->video_ctx->height;
@@ -786,7 +786,7 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
 
-  texture_mutex = SDL_CreateMutex();
+  //texture_mutex = SDL_CreateMutex();
 
   av_strlcpy(is->filename, argv[1], sizeof(is->filename));
 
@@ -810,6 +810,8 @@ int main(int argc, char *argv[]) {
     case SDL_QUIT:
       fprintf(stderr, "receive a QUIT event: %d\n", event.type);
       is->quit = 1;
+      SDL_CondSignal(is->audioq.cond);
+      SDL_CondSignal(is->pictq_cond);
       //SDL_Quit();
       //return 0;
       goto __QUIT;

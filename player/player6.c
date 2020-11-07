@@ -107,7 +107,7 @@ typedef struct VideoState {
   int             quit;
 } VideoState;
 
-SDL_mutex    *text_mutex;
+//SDL_mutex    *text_mutex;
 SDL_Window   *win = NULL;
 SDL_Renderer *renderer;
 SDL_Texture  *texture;
@@ -454,12 +454,11 @@ void video_display(VideoState *is) {
     rect.y = 0;
     rect.w = is->video_ctx->width;
     rect.h = is->video_ctx->height;
-    SDL_LockMutex(text_mutex);
+    //SDL_LockMutex(text_mutex);
     SDL_RenderClear( renderer );
     SDL_RenderCopy( renderer, texture, NULL, &rect);
     SDL_RenderPresent( renderer );
-    SDL_UnlockMutex(text_mutex);
-
+    //SDL_UnlockMutex(text_mutex);
   }
 }
 
@@ -548,7 +547,7 @@ void alloc_picture(void *userdata) {
   }
 
   // Allocate a place to put our YUV image on that screen
-  SDL_LockMutex(text_mutex);
+  //SDL_LockMutex(text_mutex);
 
   vp->bmp = (AVPicture*)malloc(sizeof(AVPicture));
   ret = avpicture_alloc(vp->bmp, AV_PIX_FMT_YUV420P, is->video_ctx->width, is->video_ctx->height);
@@ -556,7 +555,7 @@ void alloc_picture(void *userdata) {
       fprintf(stderr, "Could not allocate temporary picture: %s\n", av_err2str(ret));
   }
 
-  SDL_UnlockMutex(text_mutex);
+  //SDL_UnlockMutex(text_mutex);
 
   vp->width = is->video_ctx->width;
   vp->height = is->video_ctx->height;
@@ -941,7 +940,7 @@ int main(int argc, char *argv[]) {
 
   renderer = SDL_CreateRenderer(win, -1, 0);
 
-  text_mutex = SDL_CreateMutex();
+  //text_mutex = SDL_CreateMutex();
 
   av_strlcpy(is->filename, argv[1], sizeof(is->filename));
 
@@ -963,6 +962,8 @@ int main(int argc, char *argv[]) {
     case FF_QUIT_EVENT:
     case SDL_QUIT:
       is->quit = 1;
+      SDL_CondSignal(is->audioq.cond);
+      SDL_CondSignal(is->pictq_cond);
       SDL_Quit();
       return 0;
       break;
